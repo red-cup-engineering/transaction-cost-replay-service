@@ -1,0 +1,12 @@
+{
+  "name": "@red-cup-engineering/transaction-cost-replay-service",
+  "version": "0.1.1",
+  "type": "module",
+  "description": "Replays target weights over realized returns under an explicit cost model and emits risk/performance measures, including per-period hit rate and expectancy.",
+  "exports": {
+    ".": "./src/replay.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}
