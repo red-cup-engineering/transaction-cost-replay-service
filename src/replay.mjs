@@ -24,8 +24,8 @@ const exposure = (weights, asset, label) =>
  * @returns {{hitRate: number, expectancy: number, averageWin: number, averageLoss: number, winCount: number, lossCount: number}}
  *   `hitRate` is the fraction of periods with a strictly positive net
  *   return; `expectancy` is the mean net return per period (the same
- *   quantity a `hitRate*averageWin - (1-hitRate)*averageLoss` decomposition
- *   must reconstruct); `averageWin`/`averageLoss` are the mean positive and
+ *   quantity a `hitRate*averageWin - (lossCount / netReturns.length)*averageLoss`
+ *   decomposition must reconstruct; flat periods are neither wins nor losses); `averageWin`/`averageLoss` are the mean positive and
  *   mean absolute-negative net returns (0 when no period of that sign
  *   occurred, never `NaN`).
  */

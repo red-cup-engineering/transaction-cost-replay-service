@@ -60,3 +60,13 @@ test("annualization requires an actual positive period count", () => {
   }
   assert.equal(replayTransactionCosts({periods, transactionCostBps: 1, periodsPerYear:365}).metrics.periods,2);
 });
+
+test("expectancy decomposes using loss frequency when flat periods are present", () => {
+  const returns = [0.02, -0.01, 0.03, -0.02, 0];
+  const result = measureHitRateAndExpectancy(returns);
+  const exact = result.hitRate * result.averageWin -
+    (result.lossCount / returns.length) * result.averageLoss;
+  assert.ok(Math.abs(result.expectancy - exact) < 1e-12);
+  assert.notEqual(result.expectancy,
+    result.hitRate * result.averageWin - (1 - result.hitRate) * result.averageLoss);
+});
