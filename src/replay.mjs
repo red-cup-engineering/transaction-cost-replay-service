@@ -1,9 +1,18 @@
+const DECIMAL = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/u;
 const finite = (value, label) => {
+  // Blank, null and boolean observations are not numeric zeros. Decimal
+  // strings remain usable after normalization for existing data consumers.
+  if (typeof value !== "number" &&
+      !(typeof value === "string" && DECIMAL.test(value))) {
+    throw new TypeError(`${label}-invalid`);
+  }
   const number = Number(value);
   if (!Number.isFinite(number) || Object.is(number, -0)) throw new TypeError(`${label}-invalid`);
   return number;
 };
 const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+const exposure = (weights, asset, label) =>
+  Object.hasOwn(weights, asset) ? finite(weights[asset], label) : 0;
 
 /**
  * Splits a replay path's per-period net returns into hit rate and
@@ -22,12 +31,12 @@ const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.
  */
 export function measureHitRateAndExpectancy(netReturns) {
   if (!Array.isArray(netReturns) || netReturns.length === 0) throw new TypeError("net-returns-required");
-  netReturns.forEach((value, index) => finite(value, `net-return[${index}]`));
-  const wins = netReturns.filter((value) => value > 0);
-  const losses = netReturns.filter((value) => value < 0);
+  const numericReturns = netReturns.map((value, index) => finite(value, `net-return[${index}]`));
+  const wins = numericReturns.filter((value) => value > 0);
+  const losses = numericReturns.filter((value) => value < 0);
   return Object.freeze({
-    hitRate: wins.length / netReturns.length,
-    expectancy: mean(netReturns),
+    hitRate: wins.length / numericReturns.length,
+    expectancy: mean(numericReturns),
     averageWin: wins.length > 0 ? mean(wins) : 0,
     averageLoss: losses.length > 0 ? -mean(losses) : 0,
     winCount: wins.length,
@@ -39,12 +48,22 @@ export function replayTransactionCosts({ periods, transactionCostBps, periodsPer
   if (!Array.isArray(periods) || periods.length < 2) throw new TypeError("replay-periods-required");
   const bps = finite(transactionCostBps, "transaction-cost-bps");
   if (bps < 0) throw new RangeError("negative-transaction-cost-refused");
+  if (!Number.isSafeInteger(periodsPerYear) || periodsPerYear < 1)
+    throw new TypeError("periods-per-year-invalid");
   let prior = {}, equity = 1, peak = 1, maximumDrawdown = 0, totalTurnover = 0, totalCosts = 0;
   const path = periods.map((period) => {
     if (!period?.weights || !period?.realizedReturns) throw new TypeError("replay-period-invalid");
     const entities = [...new Set([...Object.keys(period.weights), ...Object.keys(period.realizedReturns)])];
-    const turnover = entities.reduce((sum, entity) => sum + Math.abs(finite(period.weights[entity] ?? 0, "weight") - finite(prior[entity] ?? 0, "prior-weight")), 0);
-    const grossReturn = entities.reduce((sum, entity) => sum + finite(period.weights[entity] ?? 0, "weight") * finite(period.realizedReturns[entity] ?? 0, "realized-return"), 0);
+    const turnover = entities.reduce((sum, entity) => sum + Math.abs(exposure(period.weights, entity, "weight") - exposure(prior, entity, "prior-weight")), 0);
+    const grossReturn = entities.reduce((sum, entity) => {
+      const weight = exposure(period.weights, entity, "weight");
+      const observed = Object.hasOwn(period.realizedReturns, entity) &&
+        period.realizedReturns[entity] !== null && period.realizedReturns[entity] !== undefined;
+      // A held instrument without a sourced realized return has an UNKNOWN
+      // PnL, not a 0% return. Flat instruments may omit their unused return.
+      if (weight !== 0 && !observed) throw new TypeError(`missing-realized-return:${entity}`);
+      return sum + weight * (observed ? finite(period.realizedReturns[entity], "realized-return") : 0);
+    }, 0);
     const cost = turnover * bps / 10_000, netReturn = grossReturn - cost;
     equity *= 1 + netReturn; peak = Math.max(peak, equity); maximumDrawdown = Math.max(maximumDrawdown, 1 - equity / peak);
     totalTurnover += turnover; totalCosts += cost; prior = period.weights;
