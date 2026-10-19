@@ -5,8 +5,7 @@
   "description": "Replays target weights over realized returns under an explicit cost model and emits risk/performance measures, including per-period hit rate and expectancy.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/red-cup-engineering/financial-engineering-services-section.git",
-    "directory": "services/strategy-evaluation-services-section/services/transaction-cost-replay-service"
+    "url": "git+https://github.com/red-cup-engineering/transaction-cost-replay-service.git"
   },
   "exports": {
     ".": "./src/replay.mjs"
